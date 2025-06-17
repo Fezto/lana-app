@@ -1,16 +1,23 @@
-import { Text } from '@react-navigation/elements';
+// src/screens/Profile.tsx
+import React from 'react';
+import { StyleSheet } from 'react-native';
+import { Surface, Text, useTheme } from 'react-native-paper';
 import { StaticScreenProps } from '@react-navigation/native';
-import { StyleSheet, View } from 'react-native';
 
 type Props = StaticScreenProps<{
   user: string;
 }>;
 
 export function Profile({ route }: Props) {
+  const theme = useTheme();
+  const { user } = route.params;
+
   return (
-    <View style={styles.container}>
-      <Text>{route.params.user}'s Profile</Text>
-    </View>
+      <Surface style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <Text variant="headlineSmall" style={{ color: theme.colors.primary }}>
+          {user}'s Profile
+        </Text>
+      </Surface>
   );
 }
 
@@ -19,6 +26,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
+    padding: 16,
   },
 });

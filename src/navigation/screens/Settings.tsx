@@ -1,11 +1,17 @@
-import { Text } from '@react-navigation/elements';
-import { StyleSheet, View } from 'react-native';
+// src/screens/Settings.tsx
+import React from 'react';
+import { StyleSheet } from 'react-native';
+import { Surface, Text, useTheme } from 'react-native-paper';
 
 export function Settings() {
+  const theme = useTheme();
+
   return (
-    <View style={styles.container}>
-      <Text>Settings Screen</Text>
-    </View>
+      <Surface style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <Text variant="headlineSmall" style={{ color: theme.colors.primary }}>
+          Settings Screen
+        </Text>
+      </Surface>
   );
 }
 
@@ -14,10 +20,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 10,
+    padding: 16,
   },
 });

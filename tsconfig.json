@@ -1,7 +1,20 @@
+// tsconfig.json
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "moduleResolution": "bundler",
-    "strict": true
+    "baseUrl": ".",
+    "paths": {
+      "@components/*": ["src/components/*"],
+      "@screens/*":    ["src/navigation/screens/*"],
+      "@hooks/*":      ["src/hooks/*"],
+      "@utils/*":      ["src/utils/*"],
+      "@services/*":   ["src/services/*"],
+      "@assets/*":     ["src/assets/*"],
+      "@navigation/*": ["src/navigation/*"],
+      "@store/*":      ["src/store/*"],
+      "@types/*":      ["src/types/*"],
+      "@api/*":        ["src/api/*"]
+    }
   }
 }

@@ -1,19 +1,28 @@
 import axios, { AxiosRequestConfig } from "axios";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const AXIOS_INSTANCE = axios.create({
-    baseURL: 'http://192.168.100.2:8000'
+    baseURL: 'https://chapiritas.org/lana',
 });
 
-export const customInstance = <T>(
+// 👇 Esta es la versión adaptada para usar AsyncStorage y bearer token
+export const customInstance = async <T>(
     config: AxiosRequestConfig,
     options?: AxiosRequestConfig
 ): Promise<T> => {
     const source = axios.CancelToken.source();
 
-    const finalConfig = {
+    const token = await AsyncStorage.getItem('access_token');
+
+    const finalConfig: AxiosRequestConfig = {
         ...config,
         ...options,
-        cancelToken: source.token
+        headers: {
+            ...(config.headers || {}),
+            ...(options?.headers || {}),
+            Authorization: token ? `Bearer ${token}` : undefined,
+        },
+        cancelToken: source.token,
     };
 
     // Armar la URL completa (baseURL + endpoint) y mostrarla

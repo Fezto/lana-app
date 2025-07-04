@@ -6,12 +6,18 @@ import { DrawerNavigator }   from './DrawerNavigator';
 import { LoginScreen }       from '@screens/Login';
 import { RegisterScreen }    from '@screens/Register';
 
-const Stack = createNativeStackNavigator();
+type RootStackParamList = {
+    Login: undefined;
+    Register: undefined;
+    App: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList, 'main'>();
 
 export function RootNavigator(props) {
     return (
         <NavigationContainer {...props}>
-            <Stack.Navigator  screenOptions={{ headerShown: false }}>
+            <Stack.Navigator id="main" screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="Login"    component={LoginScreen} />
                 <Stack.Screen name="Register" component={RegisterScreen} />
                 <Stack.Screen name="App"      component={DrawerNavigator} />

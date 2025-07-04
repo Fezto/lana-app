@@ -11,13 +11,22 @@ import { Settings } from '@screens/Settings';
 import { NotFound } from '@screens/NotFound';
 import { CustomDrawerContent } from '@navigation/drawer/CustomDrawerContent';
 
-const Drawer = createDrawerNavigator();
+type DrawerParamList = {
+    Home: undefined;
+    Transactions: undefined;
+    Budgets: undefined;
+    Profile: undefined;
+    Settings: undefined;
+    NotFound: undefined;
+};
+
+const Drawer = createDrawerNavigator<DrawerParamList, "drawer">();
 
 export function DrawerNavigator() {
     const theme = useTheme();
 
     return (
-        <Drawer.Navigator drawerContent={(props) => <CustomDrawerContent {...props} />}
+        <Drawer.Navigator id="drawer" drawerContent={(props) => <CustomDrawerContent {...props} />}
             screenOptions={{
                 headerTintColor: '#fff',
                 headerStyle: { backgroundColor: theme.colors.primary },
@@ -65,7 +74,7 @@ export function DrawerNavigator() {
             <Drawer.Screen
                 name="Settings"
                 component={Settings}
-                options={{ title: 'Configuración', presentation: 'modal' }}
+                options={{ title: 'Configuración' }}
             />
             <Drawer.Screen name="NotFound" component={NotFound} options={{ title: '404' }} />
         </Drawer.Navigator>

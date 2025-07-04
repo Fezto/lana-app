@@ -1,13 +1,12 @@
 // src/screens/Register.tsx
 import React from 'react';
-import { StyleSheet, View, ScrollView } from 'react-native';
-import { TextInput, Button, Text, HelperText, useTheme } from 'react-native-paper';
-import { useForm, Controller } from 'react-hook-form';
-import { useNavigation } from '@react-navigation/native';
+import {StyleSheet, View, ScrollView} from 'react-native';
+import {TextInput, Button, Text, HelperText, useTheme} from 'react-native-paper';
+import {useForm, Controller} from 'react-hook-form';
+import {useNavigation} from '@react-navigation/native';
 
-import { UserCreate } from '@api/schemas/userCreate';
-import { useRegisterUser } from '@api/auth';  // hook generado por Orval
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {UserCreate} from '@api/schemas/userCreate';
+import {useRegisterUser} from '@api/auth';  // hook generado por Orval
 
 export function RegisterScreen() {
     const theme = useTheme();
@@ -15,7 +14,7 @@ export function RegisterScreen() {
     const {
         control,
         handleSubmit,
-        formState: { errors, isSubmitting },
+        formState: {errors, isSubmitting},
     } = useForm<UserCreate>({
         defaultValues: {
             first_name: '',
@@ -26,11 +25,11 @@ export function RegisterScreen() {
         },
     });
 
-    const { mutateAsync: register } = useRegisterUser();
+    const {mutateAsync: register} = useRegisterUser();
 
     const onSubmit = async (data: UserCreate) => {
         try {
-            const user = await register({ data });
+            const user = await register({data});
             console.log('Usuario registrado:', user);
 
             // Tras registro, redirigir al login
@@ -45,7 +44,7 @@ export function RegisterScreen() {
             <View style={styles.container}>
                 <Text
                     variant="headlineMedium"
-                    style={[styles.title, { color: theme.colors.primary }]}
+                    style={[styles.title, {color: theme.colors.primary}]}
                 >
                     Crear Cuenta
                 </Text>
@@ -53,8 +52,8 @@ export function RegisterScreen() {
                 <Controller
                     control={control}
                     name="first_name"
-                    rules={{ required: 'Nombre es requerido' }}
-                    render={({ field: { onChange, onBlur, value } }) => (
+                    rules={{required: 'Nombre es requerido'}}
+                    render={({field: {onChange, onBlur, value}}) => (
                         <>
                             <TextInput
                                 label="Nombre"
@@ -72,8 +71,8 @@ export function RegisterScreen() {
                 <Controller
                     control={control}
                     name="last_name"
-                    rules={{ required: 'Apellido es requerido' }}
-                    render={({ field: { onChange, onBlur, value } }) => (
+                    rules={{required: 'Apellido es requerido'}}
+                    render={({field: {onChange, onBlur, value}}) => (
                         <>
                             <TextInput
                                 label="Apellido"
@@ -93,9 +92,9 @@ export function RegisterScreen() {
                     name="email"
                     rules={{
                         required: 'Email es requerido',
-                        pattern: { value: /\S+@\S+\.\S+/, message: 'Formato inválido' },
+                        pattern: {value: /\S+@\S+\.\S+/, message: 'Formato inválido'},
                     }}
-                    render={({ field: { onChange, onBlur, value } }) => (
+                    render={({field: {onChange, onBlur, value}}) => (
                         <>
                             <TextInput
                                 label="Email"
@@ -116,9 +115,9 @@ export function RegisterScreen() {
                     control={control}
                     name="telephone"
                     rules={{
-                        pattern: { value: /^[0-9()+-\s]*$/, message: 'Teléfono inválido' },
+                        pattern: {value: /^[0-9()+\s-]*$/, message: 'Teléfono inválido'},
                     }}
-                    render={({ field: { onChange, onBlur, value } }) => (
+                    render={({field: {onChange, onBlur, value}}) => (
                         <>
                             <TextInput
                                 label="Teléfono (opcional)"
@@ -139,9 +138,9 @@ export function RegisterScreen() {
                     name="password"
                     rules={{
                         required: 'Contraseña es requerida',
-                        minLength: { value: 6, message: 'Mínimo 6 caracteres' },
+                        minLength: {value: 6, message: 'Mínimo 6 caracteres'},
                     }}
-                    render={({ field: { onChange, onBlur, value } }) => (
+                    render={({field: {onChange, onBlur, value}}) => (
                         <>
                             <TextInput
                                 label="Contraseña"

@@ -1,12 +1,11 @@
-// src/screens/Home.tsx
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { Surface, Text, ActivityIndicator, useTheme } from 'react-native-paper';
-import { useGetUserById } from '@api/users';
+import { useGetCurrentUser } from '@api/users';  // <- nuevo hook
 
 export function Home() {
     const theme = useTheme();
-    const { data, isLoading, error } = useGetUserById(2);
+    const { data, isLoading, error } = useGetCurrentUser();  // <- nuevo hook
 
     if (isLoading) {
         return (
@@ -15,11 +14,13 @@ export function Home() {
             </Surface>
         );
     }
+
+
     if (error) {
         return (
             <Surface style={[styles.center, { backgroundColor: theme.colors.background }]}>
                 <Text variant="bodyMedium" style={{ color: theme.colors.error }}>
-                    Error: {JSON.stringify(error)}
+                    {`Error: ${error ?? 'Error desconocido'}`}
                 </Text>
             </Surface>
         );

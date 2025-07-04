@@ -1,4 +1,4 @@
-import { Text } from '@react-navigation/elements';
+import { Text } from 'react-native-paper';
 import { StyleSheet, View } from 'react-native';
 
 export function Updates() {

@@ -32,7 +32,7 @@ export function LoginScreen() {
             await AsyncStorage.setItem('refresh_token', tokens.refresh_token);
 
 
-            navigation.replace('Home');
+            navigation.replace('App');
         } catch (error) {
             console.error('Error de login', error);
         }

@@ -1,11 +1,11 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { Surface, Text, ActivityIndicator, useTheme } from 'react-native-paper';
-import { useGetCurrentUser } from '@api/users';  // <- nuevo hook
+import { useAuth } from "@hooks/useAuth";  // <- nuevo hook
 
 export function Home() {
     const theme = useTheme();
-    const { data, isLoading, error } = useGetCurrentUser();  // <- nuevo hook
+    const { user, isLoading, error } = useAuth();
 
     if (isLoading) {
         return (
@@ -20,7 +20,7 @@ export function Home() {
         return (
             <Surface style={[styles.center, { backgroundColor: theme.colors.background }]}>
                 <Text variant="bodyMedium" style={{ color: theme.colors.error }}>
-                    {`Error: ${error ?? 'Error desconocido'}`}
+                    {`Error: ${String(error) ?? 'Error desconocido'}`}
                 </Text>
             </Surface>
         );
@@ -31,8 +31,8 @@ export function Home() {
             <Text variant="headlineMedium" style={{ color: theme.colors.primary }}>
                 Home Screen
             </Text>
-            <Text variant="bodyLarge">Email: {data?.email}</Text>
-            <Text variant="bodyLarge">Usuario: {data?.first_name}</Text>
+            <Text variant="bodyLarge">Email: {user?.email}</Text>
+            <Text variant="bodyLarge">Usuario: {user?.first_name}</Text>
         </Surface>
     );
 }

@@ -263,7 +263,7 @@ export function Transactions() {
       />
 
       <View style={styles.filtersContainer}>
-        {/* Temporalmente comentado hasta obtener las categorías
+        
         <Text variant="labelMedium" style={styles.filterLabel}>
           Tipo:
         </Text>
@@ -273,7 +273,7 @@ export function Transactions() {
           buttons={typeFilterOptions}
           style={styles.segmentedButtons}
         />
-        */}
+       
 
         <Text variant="labelMedium" style={styles.filterLabel}>
           Estado:

@@ -249,17 +249,19 @@ export function Transactions() {
     );
   };
 
-  const handleTransactionAdded = () => {
+  const handleTransactionAdded = async() => {
     setModalVisible(false);
     setTransactionToEdit(null);
     // Invalidar tanto transacciones como categorías para refrescar la data
     queryClient.invalidateQueries({ queryKey: ["/transactions/"] });
     queryClient.invalidateQueries({ queryKey: ["/categories/"] });
+    await refetch();
   };
 
-  const handleDeleteTransaction = (transaction: TransactionRead) => {
+  const handleDeleteTransaction = async (transaction: TransactionRead) => {
     setTransactionToDelete(transaction);
     setDeleteDialogVisible(true);
+    await refetch();
   };
 
   const confirmDeleteTransaction = async () => {

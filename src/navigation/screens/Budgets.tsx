@@ -22,6 +22,8 @@ import { useListCategories } from "@api/categories";
 import { useAuth } from "@hooks/useAuth";
 import { BudgetForm } from "../../forms/BudgetForm";
 import type { BudgetRead } from "@api/schemas";
+import { useUpdateCategory } from "@api/categories";
+import { EditBudgetForm } from "../../forms/EditBudgetForm";
 
 export function Budgets() {
   const theme = useTheme();
@@ -34,6 +36,8 @@ export function Budgets() {
   const [currentMonthYear, setCurrentMonthYear] = useState(
     new Date().toISOString().slice(0, 7) // YYYY-MM formato actual
   );
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [budgetToEdit, setBudgetToEdit] = useState<BudgetRead | null>(null);
 
   const {
     data: budgets,
@@ -146,6 +150,13 @@ export function Budgets() {
                   onPress={() => handleDeleteBudget(item)}
                   style={styles.deleteButton}
                 />
+                <IconButton
+                  icon="pencil"
+                  size={20}
+                  iconColor={theme.colors.primary}
+                  onPress={() => handleEditBudget(item)}
+                  style={styles.editButton}
+                />
               </View>
             </View>
           </View>
@@ -177,6 +188,23 @@ export function Budgets() {
     // Invalidar tanto presupuestos como categorías para refrescar la data
     queryClient.invalidateQueries({ queryKey: ["/budgets/"] });
     queryClient.invalidateQueries({ queryKey: ["/categories/"] });
+  };
+
+  const handleBudgetUpdated = () => {
+  setEditModalVisible(false);
+  setBudgetToEdit(null);
+  queryClient.invalidateQueries({ queryKey: ["/budgets/"] });
+  queryClient.invalidateQueries({ queryKey: ["/categories/"] });
+};
+
+  const handleEditBudget = (budget: BudgetRead) => {
+    setBudgetToEdit(budget);
+    setEditModalVisible(true);
+  };
+
+  const cancelEditBudget = () => {
+    setEditModalVisible(false);
+    setBudgetToEdit(null);
   };
 
   const handleDeleteBudget = (budget: BudgetRead) => {
@@ -336,6 +364,27 @@ export function Budgets() {
           />
         </Modal>
 
+        {/* Modal para el formulario de edición */}
+        <Modal
+          visible={editModalVisible}
+          onDismiss={cancelEditBudget}
+          contentContainerStyle={[
+            styles.modal,
+            { backgroundColor: theme.colors.surface },
+          ]}
+        >
+          <Text variant="headlineSmall" style={styles.modalTitle}>
+            Editar Presupuesto
+          </Text>
+          {budgetToEdit && (
+            <EditBudgetForm
+              budget={budgetToEdit}
+              onSuccess={handleBudgetUpdated}
+              onCancel={cancelEditBudget}
+            />
+          )}
+        </Modal>
+
         {/* Diálogo de confirmación para eliminar */}
         <Dialog visible={deleteDialogVisible} onDismiss={cancelDeleteBudget}>
           <Dialog.Title>Eliminar Presupuesto</Dialog.Title>
@@ -480,5 +529,8 @@ const styles = StyleSheet.create({
   modalTitle: {
     marginBottom: 20,
     textAlign: "center",
+  },
+  editButton: {
+    margin: 0,
   },
 });

@@ -6,6 +6,7 @@ import Icon from "react-native-vector-icons/Ionicons";
 import { Home } from "@screens/Home";
 import { Transactions } from "../screens/Transactions";
 import { Budgets } from "@screens/Budgets";
+import { BudgetDashboard } from "@screens/BudgetDashboard"; // ✅ Nueva importación
 import { RecurringPayments } from "@screens/RecurringPayments";
 import { Reports } from "@screens/Reports";
 import { Profile } from "@screens/Profile";
@@ -15,6 +16,7 @@ import { CustomDrawerContent } from "@navigation/drawer/CustomDrawerContent";
 
 type DrawerParamList = {
   Home: undefined;
+  BudgetDashboard: undefined; // ✅ Agregar al tipo
   Transactions: undefined;
   Budgets: undefined;
   RecurringPayments: undefined;
@@ -55,6 +57,19 @@ export function DrawerNavigator() {
           ),
         }}
       />
+      
+      {/* ✅ Nueva pantalla de Dashboard */}
+      <Drawer.Screen
+        name="BudgetDashboard"
+        component={BudgetDashboard}
+        options={{
+          title: "Dashboard Financiero",
+          drawerIcon: ({ color, size }) => (
+            <Icon name="analytics-outline" color={color} size={size} />
+          ),
+        }}
+      />
+
       <Drawer.Screen
         name="Transactions"
         component={Transactions}
@@ -65,6 +80,7 @@ export function DrawerNavigator() {
           ),
         }}
       />
+      
       <Drawer.Screen
         name="Budgets"
         component={Budgets}
@@ -75,6 +91,7 @@ export function DrawerNavigator() {
           ),
         }}
       />
+      
       <Drawer.Screen
         name="RecurringPayments"
         component={RecurringPayments}
@@ -85,6 +102,7 @@ export function DrawerNavigator() {
           ),
         }}
       />
+      
       <Drawer.Screen
         name="Reports"
         component={Reports}
@@ -94,26 +112,6 @@ export function DrawerNavigator() {
             <Icon name="bar-chart-outline" color={color} size={size} />
           ),
         }}
-      />
-      <Drawer.Screen
-        name="Profile"
-        component={Profile}
-        options={{
-          title: "Mi Perfil",
-          drawerIcon: ({ color, size }) => (
-            <Icon name="person-outline" color={color} size={size} />
-          ),
-        }}
-      />
-      <Drawer.Screen
-        name="Settings"
-        component={Settings}
-        options={{ title: "Configuración" }}
-      />
-      <Drawer.Screen
-        name="NotFound"
-        component={NotFound}
-        options={{ title: "404" }}
       />
     </Drawer.Navigator>
   );

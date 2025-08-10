@@ -97,8 +97,16 @@ export function BudgetDashboard() {
         icon="chevron-left"
         compact
         >
-        Anterior
+        {(() => {
+            const [year, month] = currentMonthYear.split('-').map(Number);
+            const prevDate = new Date(year, month - 2); // -2 porque month es 1-indexed
+            return prevDate.toLocaleDateString('es-ES', { month: 'short' });
+        })()}
         </Button>
+
+        <Text variant="headlineSmall" style={styles.monthTitle}>
+        {formatMonthYear(currentMonthYear)}
+        </Text>
 
         <Button
         mode="outlined"
@@ -107,7 +115,11 @@ export function BudgetDashboard() {
         icon="chevron-right"
         compact
         >
-        Siguiente
+        {(() => {
+            const [year, month] = currentMonthYear.split('-').map(Number);
+            const nextDate = new Date(year, month); // month es 1-indexed, así que no restamos
+            return nextDate.toLocaleDateString('es-ES', { month: 'short' });
+        })()}
         </Button>
       </View>
 

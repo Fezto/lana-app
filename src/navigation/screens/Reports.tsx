@@ -12,22 +12,8 @@ import {
   TextInput,
   HelperText,
 } from "react-native-paper";
-import {
-  VictoryChart,
-  VictoryLine,
-  VictoryArea,
-  VictoryAxis,
-  VictoryTheme,
-  VictoryPie,
-  VictoryBar,
-  VictoryContainer,
-} from "victory-native";
 import { useAuth } from "@hooks/useAuth";
-import {
-  useGetIncomeExpenseReport,
-  useGetByCategoryReport,
-  useGetTrendReport,
-} from "@api/reports";
+import { useCategoryBalances } from "@hooks/useCategoryBalances";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -36,229 +22,72 @@ export function Reports() {
   const { user } = useAuth();
 
   const [reportType, setReportType] = useState<
-    "income-expense" | "category" | "trends"
-  >("income-expense");
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-      .toISOString()
-      .split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
-  });
-  const [categoryType, setCategoryType] = useState<"income" | "expense" | null>(
-    null
-  );
-  const [granularity, setGranularity] = useState<
-    "daily" | "weekly" | "monthly"
-  >("monthly");
-
-  // Queries para los diferentes reportes
-  const {
-    data: incomeExpenseData,
-    isLoading: incomeExpenseLoading,
-    error: incomeExpenseError,
-  } = useGetIncomeExpenseReport(
-    { start_date: dateRange.startDate, end_date: dateRange.endDate },
-    {
-      query: {
-        enabled: !!user && reportType === "income-expense",
-      },
-    }
+    "budget-usage" | "category-balance" | "budget-trends"
+  >("budget-usage");
+  
+  const [currentMonthYear, setCurrentMonthYear] = useState(
+    new Date().toISOString().slice(0, 7)
   );
 
-  const {
-    data: categoryData,
-    isLoading: categoryLoading,
-    error: categoryError,
-  } = useGetByCategoryReport(
-    {
-      start_date: dateRange.startDate,
-      end_date: dateRange.endDate,
-      type: categoryType || undefined,
-    },
-    {
-      query: {
-        enabled: !!user && reportType === "category",
-      },
-    }
-  );
-
-  const {
-    data: trendsData,
-    isLoading: trendsLoading,
-    error: trendsError,
-  } = useGetTrendReport(
-    {
-      start_date: dateRange.startDate,
-      end_date: dateRange.endDate,
-      granularity: granularity,
-    },
-    {
-      query: {
-        enabled: !!user && reportType === "trends",
-      },
-    }
-  );
+  // Usar el hook del dashboard para obtener datos reales
+  const { 
+    categoryBalances, 
+    summary, 
+    overBudgetCategories, 
+    warningCategories,
+    healthyCategories 
+  } = useCategoryBalances(currentMonthYear);
 
   const reportTypeOptions = [
-    { value: "income-expense", label: "Ingresos vs Gastos" },
-    { value: "category", label: "Por Categoría" },
-    { value: "trends", label: "Tendencias" },
+    { value: "budget-usage", label: "Uso de Presupuesto" },
+    { value: "category-balance", label: "Balance por Categoría" },
+    { value: "budget-trends", label: "Tendencias de Presupuesto" },
   ];
 
-  const categoryTypeOptions = [
-    { value: "all", label: "Todos" },
-    { value: "income", label: "Ingresos" },
-    { value: "expense", label: "Gastos" },
-  ];
-
-  const granularityOptions = [
-    { value: "daily", label: "Diario" },
-    { value: "weekly", label: "Semanal" },
-    { value: "monthly", label: "Mensual" },
-  ];
-
-  const chartConfig = {
-    backgroundColor: theme.colors.surface,
-    backgroundGradientFrom: theme.colors.surface,
-    backgroundGradientTo: theme.colors.surface,
-    color: (opacity = 1) => `rgba(${theme.colors.primary}, ${opacity})`,
-    labelColor: (opacity = 1) => theme.colors.onSurface,
-    strokeWidth: 2,
-    barPercentage: 0.5,
-    useShadowColorFromDataset: false,
+  // Formatear el mes/año para mostrar
+  const formatMonthYear = (monthYear: string) => {
+    const [year, month] = monthYear.split('-').map(Number);
+    const date = new Date(year, month - 1);
+    return date.toLocaleDateString('es-ES', {
+      month: 'long',
+      year: 'numeric',
+    });
   };
 
-  const renderIncomeExpenseChart = () => {
-    if (incomeExpenseLoading) {
-      return <ActivityIndicator size="large" style={styles.loading} />;
+  // Navegación de meses
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const [year, month] = currentMonthYear.split('-').map(Number);
+    const currentDate = new Date(year, month - 1);
+
+    if (direction === 'prev') {
+      currentDate.setMonth(currentDate.getMonth() - 1);
+    } else {
+      currentDate.setMonth(currentDate.getMonth() + 1);
     }
 
-    if (incomeExpenseError || !incomeExpenseData?.items?.length) {
-      return (
-        <Text variant="bodyMedium" style={styles.noData}>
-          No hay datos para mostrar en el período seleccionado
-        </Text>
-      );
-    }
-
-    const data = {
-      labels: incomeExpenseData.items.map((item) => item.period),
-      datasets: [
-        {
-          data: incomeExpenseData.items.map((item) =>
-            parseFloat(item.income.toString())
-          ),
-          color: () => theme.colors.primary,
-          strokeWidth: 2,
-        },
-        {
-          data: incomeExpenseData.items.map((item) =>
-            parseFloat(item.expense.toString())
-          ),
-          color: () => theme.colors.error,
-          strokeWidth: 2,
-        },
-      ],
-      legend: ["Ingresos", "Gastos"],
-    };
-
-    // Preparar datos para gifted-charts
-    const lineData = incomeExpenseData.items.map((item, index) => ({
-      value: parseFloat(item.income.toString()),
-      dataPointText: `$${parseFloat(item.income.toString()).toFixed(0)}`,
-      label: item.period,
-    }));
-
-    const lineData2 = incomeExpenseData.items.map((item, index) => ({
-      value: parseFloat(item.expense.toString()),
-      dataPointText: `$${parseFloat(item.expense.toString()).toFixed(0)}`,
-    }));
-
-    return (
-      <View style={styles.chartContainer}>
-        <Text variant="titleMedium" style={styles.chartTitle}>
-          Ingresos vs Gastos
-        </Text>
-        <View style={styles.simpleChart}>
-          {incomeExpenseData.items.slice(0, 6).map((item, index) => {
-            const income = parseFloat(item.income.toString());
-            const expense = parseFloat(item.expense.toString());
-            const maxValue = Math.max(income, expense);
-            const incomeHeight = maxValue > 0 ? (income / maxValue) * 150 : 0;
-            const expenseHeight = maxValue > 0 ? (expense / maxValue) * 150 : 0;
-
-            return (
-              <View key={index} style={styles.barGroup}>
-                <Text variant="bodySmall" style={styles.barLabel}>
-                  {item.period}
-                </Text>
-                <View style={styles.barContainer}>
-                  <View style={styles.barWrapper}>
-                    <View
-                      style={[
-                        styles.bar,
-                        {
-                          height: incomeHeight,
-                          backgroundColor: theme.colors.primary,
-                        },
-                      ]}
-                    />
-                    <Text variant="bodySmall" style={styles.barValue}>
-                      ${income.toFixed(0)}
-                    </Text>
-                  </View>
-                  <View style={styles.barWrapper}>
-                    <View
-                      style={[
-                        styles.bar,
-                        {
-                          height: expenseHeight,
-                          backgroundColor: theme.colors.error,
-                        },
-                      ]}
-                    />
-                    <Text variant="bodySmall" style={styles.barValue}>
-                      ${expense.toFixed(0)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-        <View style={styles.legendContainer}>
-          <View style={styles.legendItem}>
-            <View
-              style={[
-                styles.legendColor,
-                { backgroundColor: theme.colors.primary },
-              ]}
-            />
-            <Text variant="bodySmall">Ingresos</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View
-              style={[
-                styles.legendColor,
-                { backgroundColor: theme.colors.error },
-              ]}
-            />
-            <Text variant="bodySmall">Gastos</Text>
-          </View>
-        </View>
-      </View>
-    );
+    const newMonthYear = `${currentDate.getFullYear()}-${String(
+      currentDate.getMonth() + 1
+    ).padStart(2, '0')}`;
+    setCurrentMonthYear(newMonthYear);
   };
 
-  const renderCategoryChart = () => {
-    if (categoryLoading) {
-      return <ActivityIndicator size="large" style={styles.loading} />;
-    }
+  const getPrevMonthName = () => {
+    const [year, month] = currentMonthYear.split('-').map(Number);
+    const prevDate = new Date(year, month - 2);
+    return prevDate.toLocaleDateString('es-ES', { month: 'short' });
+  };
 
-    if (categoryError || !categoryData?.items?.length) {
+  const getNextMonthName = () => {
+    const [year, month] = currentMonthYear.split('-').map(Number);
+    const nextDate = new Date(year, month);
+    return nextDate.toLocaleDateString('es-ES', { month: 'short' });
+  };
+
+  const renderBudgetUsageChart = () => {
+    if (!categoryBalances.length) {
       return (
         <Text variant="bodyMedium" style={styles.noData}>
-          No hay datos para mostrar en el período seleccionado
+          No hay presupuestos para mostrar en este período
         </Text>
       );
     }
@@ -276,97 +105,98 @@ export function Reports() {
       "#9966FF",
     ];
 
-    const pieData = categoryData.items.map((item, index) => ({
-      name: item.category_name,
-      population: parseFloat(item.total.toString()),
-      color: colors[index % colors.length],
-      legendFontColor: theme.colors.onSurface,
-      legendFontSize: 12,
-    }));
-
-    // Preparar datos para PieChart de gifted-charts
-    const pieChartData = categoryData.items.map((item, index) => ({
-      value: parseFloat(item.total.toString()),
-      color: colors[index % colors.length],
-      text: `$${parseFloat(item.total.toString()).toFixed(0)}`,
-      label: item.category_name,
-    }));
-
     return (
       <View style={styles.chartContainer}>
         <Text variant="titleMedium" style={styles.chartTitle}>
-          Gastos por Categoría
+          Uso de Presupuesto por Categoría
         </Text>
-        <View style={styles.pieChartContainer}>
-          {pieChartData.slice(0, 6).map((item, index) => (
-            <View key={index} style={[styles.pieItem, { backgroundColor: item.color + '20' }]}>
-              <View
-                style={[styles.legendColor, { backgroundColor: item.color }]}
-              />
-              <View style={styles.pieItemText}>
-                <Text variant="bodyMedium" numberOfLines={1}>
-                  {item.label}
-                </Text>
-                <Text variant="bodySmall" style={styles.pieItemValue}>
-                  ${parseFloat(item.value.toString()).toFixed(2)}
-                </Text>
+        
+        {/* Gráfica de barras horizontales */}
+        <View style={styles.horizontalBarsContainer}>
+          {categoryBalances.slice(0, 8).map((balance, index) => {
+            const usagePercentage = Math.min(balance.usedPercentage, 100);
+            const color = balance.isOverBudget 
+              ? theme.colors.error 
+              : balance.usedPercentage >= 80 
+              ? theme.colors.tertiary 
+              : theme.colors.primary;
+
+            return (
+              <View key={balance.categoryId} style={styles.horizontalBarRow}>
+                <View style={styles.categoryInfo}>
+                  <Text variant="bodyMedium" numberOfLines={1} style={styles.categoryLabel}>
+                    {balance.categoryName}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.percentageLabel}>
+                    {usagePercentage.toFixed(1)}%
+                  </Text>
+                </View>
+                
+                <View style={styles.horizontalBarContainer}>
+                  <View style={[styles.horizontalBarBackground]}>
+                    <View 
+                      style={[
+                        styles.horizontalBarFill,
+                        { 
+                          width: `${usagePercentage}%`,
+                          backgroundColor: color,
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <Text variant="bodySmall" style={styles.amountLabel}>
+                    ${(balance.transactionTotal + balance.recurringTotal).toFixed(0)} / ${balance.budgetAmount.toFixed(0)}
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
+        </View>
+
+        {/* Leyenda */}
+        <View style={styles.legendContainer}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: theme.colors.primary }]} />
+            <Text variant="bodySmall">En buen estado</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: theme.colors.tertiary }]} />
+            <Text variant="bodySmall">Cerca del límite</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: theme.colors.error }]} />
+            <Text variant="bodySmall">Sobre presupuesto</Text>
+          </View>
         </View>
       </View>
     );
   };
 
-  const renderTrendsChart = () => {
-    if (trendsLoading) {
-      return <ActivityIndicator size="large" style={styles.loading} />;
-    }
-
-    if (trendsError || !trendsData?.items?.length) {
+  const renderCategoryBalanceChart = () => {
+    if (!categoryBalances.length) {
       return (
         <Text variant="bodyMedium" style={styles.noData}>
-          No hay datos para mostrar en el período seleccionado
+          No hay presupuestos para mostrar en este período
         </Text>
       );
     }
 
-    const data = {
-      labels: trendsData.items.slice(0, 6).map((item) => item.period),
-      datasets: [
-        {
-          data: trendsData.items
-            .slice(0, 6)
-            .map((item) => parseFloat(item.total.toString())),
-        },
-      ],
-    };
-
-    // Preparar datos para BarChart de gifted-charts
-    const barData = trendsData.items.slice(0, 6).map((item, index) => ({
-      value: parseFloat(item.total.toString()),
-      label: item.period,
-      frontColor: theme.colors.primary,
-      gradientColor: theme.colors.primaryContainer,
-      spacing: 2,
-      labelWidth: 50,
-      labelTextStyle: { fontSize: 10 },
-    }));
-
     return (
       <View style={styles.chartContainer}>
         <Text variant="titleMedium" style={styles.chartTitle}>
-          Tendencias por Período
+          Balance Disponible por Categoría
         </Text>
+        
         <View style={styles.simpleChart}>
-          {barData.slice(0, 6).map((item, index) => {
-            const maxValue = Math.max(...barData.map((bar) => bar.value));
-            const height = maxValue > 0 ? (item.value / maxValue) * 150 : 0;
+          {categoryBalances.slice(0, 6).map((balance, index) => {
+            const maxBalance = Math.max(...categoryBalances.map(b => Math.abs(b.availableBalance)));
+            const height = maxBalance > 0 ? (Math.abs(balance.availableBalance) / maxBalance) * 150 : 0;
+            const isNegative = balance.availableBalance < 0;
 
             return (
-              <View key={index} style={styles.barGroup}>
-                <Text variant="bodySmall" style={styles.barLabel}>
-                  {item.label}
+              <View key={balance.categoryId} style={styles.barGroup}>
+                <Text variant="bodySmall" style={styles.barLabel} numberOfLines={2}>
+                  {balance.categoryName}
                 </Text>
                 <View style={styles.barContainer}>
                   <View style={styles.barWrapper}>
@@ -375,18 +205,134 @@ export function Reports() {
                         styles.bar,
                         {
                           height: height,
-                          backgroundColor: theme.colors.primary,
+                          backgroundColor: isNegative ? theme.colors.error : theme.colors.primary,
                         },
                       ]}
                     />
                     <Text variant="bodySmall" style={styles.barValue}>
-                      ${item.value.toFixed(0)}
+                      ${balance.availableBalance.toFixed(0)}
                     </Text>
                   </View>
                 </View>
               </View>
             );
           })}
+        </View>
+
+        <View style={styles.legendContainer}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: theme.colors.primary }]} />
+            <Text variant="bodySmall">Disponible</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: theme.colors.error }]} />
+            <Text variant="bodySmall">Sobregiro</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderBudgetTrendsChart = () => {
+    if (!categoryBalances.length) {
+      return (
+        <Text variant="bodyMedium" style={styles.noData}>
+          No hay presupuestos para mostrar en este período
+        </Text>
+      );
+    }
+
+    // Crear gráfica comparativa: Presupuestado vs Gastado vs Disponible
+    return (
+      <View style={styles.chartContainer}>
+        <Text variant="titleMedium" style={styles.chartTitle}>
+          Presupuestado vs Gastado vs Disponible
+        </Text>
+        
+        <View style={styles.compareChart}>
+          {categoryBalances.slice(0, 5).map((balance, index) => {
+            const maxValue = Math.max(
+              balance.budgetAmount,
+              balance.transactionTotal + balance.recurringTotal,
+              Math.abs(balance.availableBalance)
+            );
+            
+            const budgetHeight = maxValue > 0 ? (balance.budgetAmount / maxValue) * 120 : 0;
+            const spentHeight = maxValue > 0 ? ((balance.transactionTotal + balance.recurringTotal) / maxValue) * 120 : 0;
+            const availableHeight = maxValue > 0 ? (Math.abs(balance.availableBalance) / maxValue) * 120 : 0;
+
+            return (
+              <View key={balance.categoryId} style={styles.compareBarGroup}>
+                <Text variant="bodySmall" style={styles.compareBarLabel} numberOfLines={2}>
+                  {balance.categoryName}
+                </Text>
+                <View style={styles.compareBarContainer}>
+                  {/* Presupuestado */}
+                  <View style={styles.compareBarWrapper}>
+                    <View
+                      style={[
+                        styles.compareBar,
+                        {
+                          height: budgetHeight,
+                          backgroundColor: theme.colors.primaryContainer,
+                        },
+                      ]}
+                    />
+                    <Text variant="bodySmall" style={styles.compareBarValue}>
+                      ${balance.budgetAmount.toFixed(0)}
+                    </Text>
+                  </View>
+                  
+                  {/* Gastado */}
+                  <View style={styles.compareBarWrapper}>
+                    <View
+                      style={[
+                        styles.compareBar,
+                        {
+                          height: spentHeight,
+                          backgroundColor: theme.colors.error,
+                        },
+                      ]}
+                    />
+                    <Text variant="bodySmall" style={styles.compareBarValue}>
+                      ${(balance.transactionTotal + balance.recurringTotal).toFixed(0)}
+                    </Text>
+                  </View>
+
+                  {/* Disponible */}
+                  <View style={styles.compareBarWrapper}>
+                    <View
+                      style={[
+                        styles.compareBar,
+                        {
+                          height: availableHeight,
+                          backgroundColor: balance.availableBalance >= 0 ? theme.colors.primary : theme.colors.errorContainer,
+                        },
+                      ]}
+                    />
+                    <Text variant="bodySmall" style={styles.compareBarValue}>
+                      ${Math.abs(balance.availableBalance).toFixed(0)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.legendContainer}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: theme.colors.primaryContainer }]} />
+            <Text variant="bodySmall">Presupuestado</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: theme.colors.error }]} />
+            <Text variant="bodySmall">Gastado</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: theme.colors.primary }]} />
+            <Text variant="bodySmall">Disponible</Text>
+          </View>
         </View>
       </View>
     );
@@ -397,11 +343,87 @@ export function Reports() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Navegador de mes */}
+        <View style={styles.monthNavigator}>
+          <Button
+            mode="outlined"
+            onPress={() => navigateMonth('prev')}
+            style={styles.monthNavButton}
+            icon="chevron-left"
+            compact
+          >
+            {getPrevMonthName()}
+          </Button>
+          <Text variant="headlineSmall" style={styles.monthTitle}>
+            {formatMonthYear(currentMonthYear)}
+          </Text>
+          <Button
+            mode="outlined"
+            onPress={() => navigateMonth('next')}
+            style={styles.monthNavButton}
+            icon="chevron-right"
+            compact
+          >
+            {getNextMonthName()}
+          </Button>
+        </View>
+
+        {/* Resumen general */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text variant="titleLarge" style={styles.sectionTitle}>
+              Resumen del Mes
+            </Text>
+            
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryItem}>
+                <Text variant="bodySmall" style={styles.summaryLabel}>
+                  Presupuesto Total
+                </Text>
+                <Text variant="titleMedium" style={[styles.summaryValue, { color: theme.colors.primary }]}>
+                  ${summary.totalBudget.toFixed(2)}
+                </Text>
+              </View>
+
+              <View style={styles.summaryItem}>
+                <Text variant="bodySmall" style={styles.summaryLabel}>
+                  Total Usado
+                </Text>
+                <Text variant="titleMedium" style={[styles.summaryValue, { color: theme.colors.error }]}>
+                  ${summary.totalUsed.toFixed(2)}
+                </Text>
+              </View>
+
+              <View style={styles.summaryItem}>
+                <Text variant="bodySmall" style={styles.summaryLabel}>
+                  Disponible
+                </Text>
+                <Text variant="titleMedium" style={[styles.summaryValue, { 
+                  color: summary.totalAvailable >= 0 ? theme.colors.primary : theme.colors.error 
+                }]}>
+                  ${summary.totalAvailable.toFixed(2)}
+                </Text>
+              </View>
+
+              <View style={styles.summaryItem}>
+                <Text variant="bodySmall" style={styles.summaryLabel}>
+                  Categorías en Riesgo
+                </Text>
+                <Text variant="titleMedium" style={[styles.summaryValue, { 
+                  color: summary.overBudgetCount > 0 ? theme.colors.error : theme.colors.primary 
+                }]}>
+                  {summary.overBudgetCount} / {categoryBalances.length}
+                </Text>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
+
         {/* Selector de tipo de reporte */}
         <Card style={styles.card}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.sectionTitle}>
-              Tipo de Reporte
+              Tipo de Gráfica
             </Text>
             <SegmentedButtons
               value={reportType}
@@ -412,125 +434,57 @@ export function Reports() {
           </Card.Content>
         </Card>
 
-        {/* Selector de fechas */}
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Período
-            </Text>
-            <View style={styles.dateContainer}>
-              <TextInput
-                label="Fecha inicio"
-                value={dateRange.startDate}
-                onChangeText={(text) =>
-                  setDateRange((prev) => ({ ...prev, startDate: text }))
-                }
-                mode="outlined"
-                style={styles.dateInput}
-                placeholder="YYYY-MM-DD"
-              />
-              <TextInput
-                label="Fecha fin"
-                value={dateRange.endDate}
-                onChangeText={(text) =>
-                  setDateRange((prev) => ({ ...prev, endDate: text }))
-                }
-                mode="outlined"
-                style={styles.dateInput}
-                placeholder="YYYY-MM-DD"
-              />
-            </View>
-          </Card.Content>
-        </Card>
-
-        {/* Controles específicos por tipo de reporte */}
-        {reportType === "category" && (
-          <Card style={styles.card}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Tipo de Transacción
-              </Text>
-              <SegmentedButtons
-                value={categoryType || "all"}
-                onValueChange={(value) =>
-                  setCategoryType(value === "all" ? null : (value as any))
-                }
-                buttons={categoryTypeOptions}
-                style={styles.segmentedButtons}
-              />
-            </Card.Content>
-          </Card>
-        )}
-
-        {reportType === "trends" && (
-          <Card style={styles.card}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Granularidad
-              </Text>
-              <SegmentedButtons
-                value={granularity}
-                onValueChange={(value) => setGranularity(value as any)}
-                buttons={granularityOptions}
-                style={styles.segmentedButtons}
-              />
-            </Card.Content>
-          </Card>
-        )}
-
         {/* Gráfica */}
         <Card style={styles.card}>
           <Card.Content>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              {reportType === "income-expense" && "Ingresos vs Gastos"}
-              {reportType === "category" && "Gastos por Categoría"}
-              {reportType === "trends" && "Tendencia de Transacciones"}
-            </Text>
-            <View style={styles.chartContainer}>
-              {reportType === "income-expense" && renderIncomeExpenseChart()}
-              {reportType === "category" && renderCategoryChart()}
-              {reportType === "trends" && renderTrendsChart()}
-            </View>
+            {reportType === "budget-usage" && renderBudgetUsageChart()}
+            {reportType === "category-balance" && renderCategoryBalanceChart()}
+            {reportType === "budget-trends" && renderBudgetTrendsChart()}
           </Card.Content>
         </Card>
 
-        {/* Resumen de datos */}
-        {reportType === "income-expense" && incomeExpenseData?.items && (
-          <Card style={styles.card}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Resumen del Período
-              </Text>
-              {incomeExpenseData.items.map((item, index) => (
-                <View key={index} style={styles.summaryRow}>
-                  <Text variant="bodyMedium" style={styles.summaryPeriod}>
-                    {item.period}
-                  </Text>
-                  <View style={styles.summaryAmounts}>
-                    <Text
-                      variant="bodyMedium"
-                      style={[
-                        styles.summaryAmount,
-                        { color: theme.colors.primary },
-                      ]}
-                    >
-                      Ingresos: ${parseFloat(item.income.toString()).toFixed(2)}
-                    </Text>
-                    <Text
-                      variant="bodyMedium"
-                      style={[
-                        styles.summaryAmount,
-                        { color: theme.colors.error },
-                      ]}
-                    >
-                      Gastos: ${parseFloat(item.expense.toString()).toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </Card.Content>
-          </Card>
-        )}
+        {/* Estadísticas detalladas */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text variant="titleMedium" style={styles.sectionTitle}>
+              Estadísticas Detalladas
+            </Text>
+            
+            <View style={styles.statsGrid}>
+              <View style={styles.statItem}>
+                <Text variant="bodySmall" style={styles.statLabel}>Categorías Saludables</Text>
+                <Text variant="titleMedium" style={[styles.statValue, { color: theme.colors.primary }]}>
+                  {healthyCategories.length}
+                </Text>
+              </View>
+              
+              <View style={styles.statItem}>
+                <Text variant="bodySmall" style={styles.statLabel}>En Alerta (>80%)</Text>
+                <Text variant="titleMedium" style={[styles.statValue, { color: theme.colors.tertiary }]}>
+                  {warningCategories.length}
+                </Text>
+              </View>
+              
+              <View style={styles.statItem}>
+                <Text variant="bodySmall" style={styles.statLabel}>Sobre Presupuesto</Text>
+                <Text variant="titleMedium" style={[styles.statValue, { color: theme.colors.error }]}>
+                  {overBudgetCategories.length}
+                </Text>
+              </View>
+              
+              <View style={styles.statItem}>
+                <Text variant="bodySmall" style={styles.statLabel}>% Presupuesto Usado</Text>
+                <Text variant="titleMedium" style={[styles.statValue, { 
+                  color: summary.totalBudget > 0 && (summary.totalUsed / summary.totalBudget) > 0.8 
+                    ? theme.colors.error 
+                    : theme.colors.primary 
+                }]}>
+                  {summary.totalBudget > 0 ? ((summary.totalUsed / summary.totalBudget) * 100).toFixed(1) : 0}%
+                </Text>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
       </ScrollView>
     </Surface>
   );
@@ -540,6 +494,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+  },
+  monthNavigator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  monthNavButton: {
+    minWidth: 40,
+  },
+  monthTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontWeight: 'bold',
+    textTransform: 'capitalize',
   },
   card: {
     marginBottom: 16,
@@ -551,63 +521,164 @@ const styles = StyleSheet.create({
   segmentedButtons: {
     marginBottom: 8,
   },
-  dateContainer: {
-    flexDirection: "row",
-    gap: 12,
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
-  dateInput: {
-    flex: 1,
+  summaryItem: {
+    width: '48%',
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    borderRadius: 8,
+  },
+  summaryLabel: {
+    opacity: 0.7,
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontWeight: 'bold',
   },
   chartContainer: {
     alignItems: "center",
     marginTop: 16,
   },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 16,
-  },
-  loading: {
-    marginVertical: 40,
-  },
-  noData: {
+  chartTitle: {
+    marginBottom: 16,
     textAlign: "center",
-    marginVertical: 40,
-    opacity: 0.7,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-    paddingVertical: 4,
-  },
-  summaryPeriod: {
     fontWeight: "bold",
   },
-  summaryAmounts: {
-    flexDirection: "column",
-    alignItems: "flex-end",
+  horizontalBarsContainer: {
+    width: '100%',
+    paddingHorizontal: 10,
   },
-  summaryAmount: {
-    fontSize: 12,
-  },
-  chartPlaceholder: {
-    textAlign: "center",
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  chartDescription: {
-    textAlign: "center",
-    opacity: 0.7,
+  horizontalBarRow: {
     marginBottom: 16,
   },
-  dataRow: {
+  categoryInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryLabel: {
+    flex: 1,
+    fontWeight: '500',
+  },
+  percentageLabel: {
+    fontWeight: 'bold',
+    minWidth: 50,
+    textAlign: 'right',
+  },
+  horizontalBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  horizontalBarBackground: {
+    flex: 1,
+    height: 20,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  horizontalBarFill: {
+    height: '100%',
+    borderRadius: 10,
+    minWidth: 4,
+  },
+  amountLabel: {
+    minWidth: 90,
+    textAlign: 'right',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  simpleChart: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    justifyContent: "space-around",
+    width: "100%",
+    paddingHorizontal: 10,
+  },
+  barGroup: {
+    alignItems: "center",
+    flex: 1,
+  },
+  barLabel: {
+    marginBottom: 8,
+    textAlign: "center",
+    fontSize: 11,
+    height: 32,
+    fontWeight: '500',
+  },
+  barContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 4,
+    height: 170,
+    justifyContent: "center",
+  },
+  barWrapper: {
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: 170,
+    width: 20,
+  },
+  bar: {
+    width: 18,
+    borderRadius: 2,
+    minHeight: 4,
+  },
+  barValue: {
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: "center",
+    fontWeight: '500',
+  },
+  compareChart: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+    paddingHorizontal: 5,
+  },
+  compareBarGroup: {
+    alignItems: "center",
+    flex: 1,
+    marginHorizontal: 2,
+  },
+  compareBarLabel: {
+    marginBottom: 8,
+    textAlign: "center",
+    fontSize: 10,
+    height: 32,
+    fontWeight: '500',
+  },
+  compareBarContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 2,
+    height: 140,
+    justifyContent: "center",
+  },
+  compareBarWrapper: {
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: 140,
+    width: 20,
+    marginHorizontal: 1,
+  },
+  compareBar: {
+    width: 16,
+    borderRadius: 2,
+    minHeight: 8,
+  },
+  compareBarValue: {
+    fontSize: 9,
+    marginTop: 4,
+    textAlign: "center",
+    fontWeight: '500',
+    width: 'auto',
+    height: 'auto',
   },
   legendContainer: {
     flexDirection: "row",
@@ -629,66 +700,31 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
   },
-  chartTitle: {
-    marginBottom: 16,
+  noData: {
     textAlign: "center",
-    fontWeight: "bold",
+    marginVertical: 40,
+    opacity: 0.7,
   },
-  simpleChart: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    paddingHorizontal: 10,
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
-  barGroup: {
-    alignItems: "center",
-    flex: 1,
-  },
-  barLabel: {
-    marginBottom: 8,
-    textAlign: "center",
-    fontSize: 10,
-  },
-  barContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 4,
-    height: 170,
-    justifyContent: "center",
-  },
-  barWrapper: {
-    alignItems: "center",
-    justifyContent: "flex-end",
-    height: 170,
-    width: 20,
-  },
-  bar: {
-    width: 18,
-    borderRadius: 2,
-    minHeight: 4,
-  },
-  barValue: {
-    fontSize: 8,
-    marginTop: 4,
-    textAlign: "center",
-  },
-  pieChartContainer: {
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  pieItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  statItem: {
+    width: '48%',
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.02)',
     borderRadius: 8,
+    alignItems: 'center',
   },
-  pieItemText: {
-    marginLeft: 12,
-    flex: 1,
+  statLabel: {
+    opacity: 0.7,
+    marginBottom: 4,
+    textAlign: 'center',
   },
-  pieItemValue: {
-    fontWeight: "bold",
+  statValue: {
+    fontWeight: 'bold',
+    fontSize: 18,
   },
 });

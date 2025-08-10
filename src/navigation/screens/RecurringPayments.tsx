@@ -26,6 +26,7 @@ import { useListCategories } from "@api/categories";
 import { useAuth } from "@hooks/useAuth";
 import { RecurringPaymentForm } from "../../forms/RecurringPaymentForm";
 import type { RecurringPaymentRead } from "@api/schemas";
+import { EditRecurringPaymentForm } from "../../forms/EditRecurringPaymentForm";
 
 export function RecurringPayments() {
   const theme = useTheme();
@@ -37,6 +38,30 @@ export function RecurringPayments() {
   const [paymentToDelete, setPaymentToDelete] =
     useState<RecurringPaymentRead | null>(null);
   const [filterActive, setFilterActive] = useState<boolean | null>(null);
+
+  // Después de los estados existentes
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [paymentToEdit, setPaymentToEdit] = useState<RecurringPaymentRead | null>(null);
+
+  // Handler para actualización exitosa
+  const handlePaymentUpdated = () => {
+    setEditModalVisible(false);
+    setPaymentToEdit(null);
+    queryClient.invalidateQueries({ queryKey: ["/recurring-payments/"] });
+    queryClient.invalidateQueries({ queryKey: ["/categories/"] });
+  };
+
+  // Handler para editar
+  const handleEditPayment = (payment: RecurringPaymentRead) => {
+    setPaymentToEdit(payment);
+    setEditModalVisible(true);
+  };
+
+  // Handler para cancelar edición
+  const cancelEditPayment = () => {
+    setEditModalVisible(false);
+    setPaymentToEdit(null);
+  };
 
   const {
     data: recurringPayments,
@@ -176,6 +201,14 @@ export function RecurringPayments() {
                   iconColor={theme.colors.error}
                   onPress={() => handleDeletePayment(item)}
                   style={styles.deleteButton}
+                />
+                // En categoryActions, antes del botón de delete
+                <IconButton
+                  icon="pencil"
+                  size={20}
+                  iconColor={theme.colors.primary}
+                  onPress={() => handleEditPayment(item)}
+                  style={styles.editButton}
                 />
               </View>
             </View>
@@ -404,6 +437,27 @@ export function RecurringPayments() {
           />
         </Modal>
 
+        {/* Modal para el formulario de edición */}
+        <Modal
+          visible={editModalVisible}
+          onDismiss={cancelEditPayment}
+          contentContainerStyle={[
+            styles.modal,
+            { backgroundColor: theme.colors.surface },
+          ]}
+        >
+          <Text variant="headlineSmall" style={styles.modalTitle}>
+            Editar Pago Programado
+          </Text>
+          {paymentToEdit && (
+            <EditRecurringPaymentForm
+              payment={paymentToEdit}
+              onSuccess={handlePaymentUpdated}
+              onCancel={cancelEditPayment}
+            />
+          )}
+        </Modal>
+
         {/* Diálogo de confirmación para eliminar */}
         <Dialog visible={deleteDialogVisible} onDismiss={cancelDeletePayment}>
           <Dialog.Title>Eliminar Pago Programado</Dialog.Title>
@@ -567,5 +621,8 @@ const styles = StyleSheet.create({
   modalTitle: {
     marginBottom: 20,
     textAlign: "center",
+  },
+  editButton: {
+  margin: 0,
   },
 });

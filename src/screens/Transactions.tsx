@@ -1,148 +1,301 @@
+// src/screens/Transactions.tsx
 import React, { useState } from "react";
-import { StyleSheet, View, FlatList, Alert } from "react-native";
+import { StyleSheet, FlatList, View } from "react-native";
 import {
+  Surface,
   Text,
-  Card,
-  FAB,
-  Searchbar,
   Button,
+  Searchbar,
+  Card,
+  ActivityIndicator,
   useTheme,
   Portal,
   Modal,
-  SegmentedButtons,
-  Menu,
-  IconButton,
+  FAB,
   Chip,
+  Dialog,
+  IconButton,
+  Menu,
+  SegmentedButtons,
 } from "react-native-paper";
-import { useListTransactions, useDeleteTransaction } from "@api/transactions";
 import { useQueryClient } from "@tanstack/react-query";
-import { TransactionForm } from "@forms/TransactionForm";
+import { useListTransactions, useDeleteTransaction } from "@api/transactions";
+import { useListCategories } from "@api/categories";
+import { useAuth } from "@hooks/useAuth";
+import { TransactionForm } from ".././forms/TransactionForm";
 import type { TransactionRead } from "@api/schemas";
+import { EditTransactionForm } from ".././forms/EditTransactionForm";
 
-type FilterType = "all";
-type StatusFilter = "all" | "pending" | "completed" | "failed";
 
 export function Transactions() {
   const theme = useTheme();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-
-  // Estados
   const [searchQuery, setSearchQuery] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [editingTransaction, setEditingTransaction] =
+  const [modalVisible, setModalVisible] = useState(false);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] =
     useState<TransactionRead | null>(null);
-  const [typeFilter, setTypeFilter] = useState<FilterType>("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [selectedTransactionId, setSelectedTransactionId] = useState<
-    number | null
-  >(null);
-  const [menuVisible, setMenuVisible] = useState(false);
+  const [transactionToEdit, setTransactionToEdit] =
+    useState<TransactionRead | null>(null);
+  const [filterType, setFilterType] = useState<"all" | "income" | "expense">(
+    "all"
+  );
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "pending" | "completed" | "failed"
+  >("all");
+  const [menuVisible, setMenuVisible] = useState<{ [key: number]: boolean }>(
+    {}
+  );
+  // Después de los estados existentes, agregar:
+  const [editModalVisible, setEditModalVisible] = useState(false);
 
-  // API
-  const { data: transactions, isLoading } = useListTransactions();
+  const {
+    data: transactions,
+    isLoading,
+    error,
+    refetch,
+  } = useListTransactions(
+    {},
+    {
+      query: {
+        retry: 2,
+        refetchOnWindowFocus: false,
+        enabled: !!user,
+      },
+    }
+  );
+
+  const { data: categories } = useListCategories({
+    query: {
+      enabled: !!user,
+    },
+  });
 
   const deleteTransactionMutation = useDeleteTransaction();
 
-  // Filtrar transacciones
-  const filteredTransactions =
-    transactions?.filter((transaction) => {
-      const matchesSearch = transaction.description
-        ?.toLowerCase()
-        .includes(searchQuery.toLowerCase());
+  // Crear un mapa de categorías para mostrar nombres en lugar de IDs
+  const categoryMap =
+    categories?.reduce((acc, cat) => {
+      acc[cat.id] = cat;
+      return acc;
+    }, {} as Record<number, any>) || {};
 
-      const matchesStatus =
-        statusFilter === "all" || transaction.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    }) || [];
-
-  const handleEdit = (transaction: TransactionRead) => {
-    setEditingTransaction(transaction);
-    setShowForm(true);
-    setMenuVisible(false);
+  // Formatear fecha para mostrar
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
   };
 
-  const handleDelete = (transaction: TransactionRead) => {
-    setMenuVisible(false);
-    Alert.alert(
-      "Eliminar Transacción",
-      `¿Estás seguro de que quieres eliminar esta transacción?${
-        transaction.description ? `\n\n"${transaction.description}"` : ""
-      }`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteTransactionMutation.mutateAsync({
-                transactionId: transaction.id,
-              });
-              queryClient.invalidateQueries({ queryKey: ["transactions"] });
-            } catch (error) {
-              console.error("Error deleting transaction:", error);
-              Alert.alert("Error", "No se pudo eliminar la transacción");
-            }
-          },
-        },
-      ]
+  // Formatear estado para mostrar
+  const formatStatus = (status: string) => {
+    const statuses: Record<string, string> = {
+      pending: "Pendiente",
+      completed: "Completada",
+      failed: "Fallida",
+    };
+    return statuses[status] || status;
+  };
+
+  const filteredTransactions =
+    transactions?.filter((transaction) => {
+      const category = categoryMap[transaction.category_id];
+      const categoryName =
+        category?.name || `Categoría ${transaction.category_id}`;
+      const description = transaction.description || "";
+
+      // Filtro por texto
+      const textMatch =
+        categoryName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        description.toLowerCase().includes(searchQuery.toLowerCase());
+
+      // Filtro por tipo
+      let typeMatch = true;
+      if (filterType !== "all") {
+        const categoryType = category?.type;
+        typeMatch = categoryType === filterType;
+      }
+
+      // Filtro por estado
+      let statusMatch = true;
+      if (filterStatus !== "all") {
+        statusMatch = transaction.status === filterStatus;
+      }
+
+      return textMatch && typeMatch && statusMatch;
+    }) || [];
+
+  const renderTransaction = ({ item }: { item: TransactionRead }) => {
+    const category = categoryMap[item.category_id];
+    const categoryName = category?.name || `Categoría ${item.category_id}`;
+    const categoryType = category?.type;
+    const isIncome = categoryType === "income";
+
+    return (
+      <Card style={styles.transactionCard}>
+        <Card.Content>
+          <View style={styles.transactionHeader}>
+            <View style={styles.transactionInfo}>
+              <View style={styles.titleRow}>
+                <Text variant="titleMedium" style={styles.categoryName}>
+                  {categoryName}
+                </Text>
+                  {/* Cambiar el Menu contextual por botones directos */}
+                  <View style={styles.actionButtons}>
+                    <IconButton
+                      icon="pencil"
+                      size={20}
+                      iconColor={theme.colors.primary}
+                      onPress={() => handleEditTransaction(item)}
+                      style={styles.editButton}
+                    />
+                    <IconButton
+                      icon="delete"
+                      size={20}
+                      iconColor={theme.colors.error}
+                      onPress={() => handleDeleteTransaction(item)}
+                      style={styles.deleteButton}
+                    />
+                  </View>
+              </View>
+              {item.description && (
+                <Text variant="bodyMedium" style={styles.description}>
+                  {item.description}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.transactionDetails}>
+            <View style={styles.amountSection}>
+              <Text
+                variant="titleLarge"
+                style={[
+                  styles.amount,
+                  {
+                    color: isIncome ? theme.colors.primary : theme.colors.error,
+                  },
+                ]}
+              >
+                {isIncome ? "+" : "-"}$
+                {parseFloat(item.amount.toString()).toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.metaInfo}>
+              <View style={styles.chipContainer}>
+                <Chip
+                  mode="outlined"
+                  style={[
+                    styles.typeChip,
+                    {
+                      backgroundColor: isIncome
+                        ? theme.colors.primaryContainer
+                        : theme.colors.errorContainer,
+                    },
+                  ]}
+                  textStyle={{
+                    color: isIncome
+                      ? theme.colors.onPrimaryContainer
+                      : theme.colors.onErrorContainer,
+                  }}
+                >
+                  {isIncome ? "Ingreso" : "Gasto"}
+                </Chip>
+                <Chip
+                  mode="outlined"
+                  style={[
+                    styles.statusChip,
+                    {
+                      backgroundColor:
+                        item.status === "completed"
+                          ? theme.colors.primaryContainer
+                          : item.status === "failed"
+                          ? theme.colors.errorContainer
+                          : theme.colors.surfaceVariant,
+                    },
+                  ]}
+                >
+                  {formatStatus(item.status)}
+                </Chip>
+              </View>
+              <Text variant="bodySmall" style={styles.dateText}>
+                📅 {formatDate(item.date)}
+              </Text>
+            </View>
+          </View>
+
+
+        </Card.Content>
+      </Card>
     );
   };
 
-  const handleFormSuccess = () => {
-    setShowForm(false);
-    setEditingTransaction(null);
-    queryClient.invalidateQueries({ queryKey: ["transactions"] });
+  const handleTransactionAdded = async() => {
+    setModalVisible(false);
+    setTransactionToEdit(null);
+    // Invalidar tanto transacciones como categorías para refrescar la data
+    queryClient.invalidateQueries({ queryKey: ["/transactions/"] });
+    queryClient.invalidateQueries({ queryKey: ["/categories/"] });
+    await refetch();
   };
 
-  const handleFormCancel = () => {
-    setShowForm(false);
-    setEditingTransaction(null);
+  // Handler para actualización exitosa
+  const handleTransactionUpdated = async () => {
+    setEditModalVisible(false);
+    setTransactionToEdit(null);
+    queryClient.invalidateQueries({ queryKey: ["/transactions/"] });
+    queryClient.invalidateQueries({ queryKey: ["/categories/"] });
+    await refetch();
   };
 
-  const formatAmount = (amount: number) => {
-    const absAmount = Math.abs(amount);
-    const formattedAmount = `$${absAmount.toLocaleString("es-MX", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+  // Handler para editar
+  const handleEditTransaction = (transaction: TransactionRead) => {
+    setTransactionToEdit(transaction);
+    setEditModalVisible(true);
+  };
 
-    if (amount > 0) {
-      return `+${formattedAmount}`;
-    } else {
-      return `-${formattedAmount}`;
+  // Handler para cancelar edición
+  const cancelEditTransaction = () => {
+    setEditModalVisible(false);
+    setTransactionToEdit(null);
+  };
+
+  const handleDeleteTransaction = async (transaction: TransactionRead) => {
+    setTransactionToDelete(transaction);
+    setDeleteDialogVisible(true);
+    await refetch();
+  };
+
+  const confirmDeleteTransaction = async () => {
+    if (!transactionToDelete) return;
+
+    try {
+      await deleteTransactionMutation.mutateAsync({
+        transactionId: transactionToDelete.id,
+      });
+
+      // Invalidar queries para refrescar la data
+      queryClient.invalidateQueries({ queryKey: ["/transactions/"] });
+
+      setDeleteDialogVisible(false);
+      setTransactionToDelete(null);
+    } catch (error) {
+      console.error("Error deleting transaction:", error);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return theme.colors.primary;
-      case "pending":
-        return theme.colors.secondary;
-      case "failed":
-        return theme.colors.error;
-      default:
-        return theme.colors.outline;
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "Completada";
-      case "pending":
-        return "Pendiente";
-      case "failed":
-        return "Fallida";
-      default:
-        return status;
-    }
+  const cancelDeleteTransaction = () => {
+    setDeleteDialogVisible(false);
+    setTransactionToDelete(null);
   };
 
   const typeFilterOptions = [
-    { value: "all", label: "Todas" },
+    { value: "all", label: "Todos" },
     { value: "income", label: "Ingresos" },
     { value: "expense", label: "Gastos" },
   ];
@@ -154,107 +307,70 @@ export function Transactions() {
     { value: "failed", label: "Fallidas" },
   ];
 
-  const renderTransaction = ({
-    item: transaction,
-  }: {
-    item: TransactionRead;
-  }) => (
-    <Card style={styles.transactionCard}>
-      <Card.Content>
-        <View style={styles.transactionHeader}>
-          <View style={styles.transactionInfo}>
-            <Text variant="titleMedium" style={styles.transactionTitle}>
-              Categoría ID: {transaction.category_id}
-            </Text>
-            {transaction.description && (
-              <Text variant="bodyMedium" style={styles.transactionDescription}>
-                {transaction.description}
-              </Text>
-            )}
-            <Text variant="bodySmall" style={styles.transactionDate}>
-              {new Date(transaction.date).toLocaleDateString("es-MX")}
-            </Text>
-          </View>
-
-          <View style={styles.transactionActions}>
-            <Text
-              variant="titleLarge"
-              style={[
-                styles.transactionAmount,
-                {
-                  color:
-                    transaction.amount > 0
-                      ? theme.colors.primary
-                      : theme.colors.error,
-                },
-              ]}
-            >
-              {formatAmount(transaction.amount)}
-            </Text>
-
-            <Menu
-              visible={menuVisible && selectedTransactionId === transaction.id}
-              onDismiss={() => setMenuVisible(false)}
-              anchor={
-                <IconButton
-                  icon="dots-vertical"
-                  size={20}
-                  onPress={() => {
-                    setSelectedTransactionId(transaction.id);
-                    setMenuVisible(true);
-                  }}
-                />
-              }
-            >
-              <Menu.Item
-                onPress={() => handleEdit(transaction)}
-                title="Editar"
-                leadingIcon="pencil"
-              />
-              <Menu.Item
-                onPress={() => handleDelete(transaction)}
-                title="Eliminar"
-                leadingIcon="delete"
-              />
-            </Menu>
-          </View>
-        </View>
-
-        <View style={styles.transactionFooter}>
-          <Chip
-            style={[
-              styles.statusChip,
-              { backgroundColor: getStatusColor(transaction.status) },
-            ]}
-            textStyle={{ color: "white" }}
-          >
-            {getStatusLabel(transaction.status)}
-          </Chip>
-        </View>
-      </Card.Content>
-    </Card>
-  );
-
-  if (showForm) {
+  if (isLoading) {
     return (
-      <Portal>
-        <Modal
-          visible={showForm}
-          onDismiss={handleFormCancel}
-          contentContainerStyle={styles.modalContainer}
+      <Surface
+        style={[
+          styles.centerContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
+        <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 16 }}>Cargando transacciones...</Text>
+      </Surface>
+    );
+  }
+
+  if (error) {
+    return (
+      <Surface
+        style={[
+          styles.centerContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
+        <Text variant="bodyMedium" style={{ color: theme.colors.error }}>
+          Error al cargar transacciones
+        </Text>
+        <Button
+          mode="outlined"
+          onPress={() => refetch()}
+          style={{ marginTop: 16 }}
         >
-          <TransactionForm
-            transaction={editingTransaction}
-            onSuccess={handleFormSuccess}
-            onCancel={handleFormCancel}
-          />
-        </Modal>
-      </Portal>
+          Reintentar
+        </Button>
+      </Surface>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <Surface
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      {/* Filtros */}
+      <View style={styles.filtersContainer}>
+        <Text variant="labelLarge" style={styles.filterLabel}>
+          Tipo:
+        </Text>
+        <SegmentedButtons
+          value={filterType}
+          onValueChange={(value) => setFilterType(value as any)}
+          buttons={typeFilterOptions}
+          style={styles.filterButtons}
+        />
+
+        <Text variant="labelLarge" style={styles.filterLabel}>
+          Estado:
+        </Text>
+        <SegmentedButtons
+          value={filterStatus}
+          onValueChange={(value) => setFilterStatus(value as any)}
+          buttons={statusFilterOptions}
+          style={styles.filterButtons}
+        />
+      </View>
+
+      {/* Campo de búsqueda */}
       <Searchbar
         placeholder="Buscar transacciones..."
         onChangeText={setSearchQuery}
@@ -262,142 +378,225 @@ export function Transactions() {
         style={styles.searchbar}
       />
 
-      <View style={styles.filtersContainer}>
-        
-        <Text variant="labelMedium" style={styles.filterLabel}>
-          Tipo:
-        </Text>
-        <SegmentedButtons
-          value={typeFilter}
-          onValueChange={(value) => setTypeFilter(value as FilterType)}
-          buttons={typeFilterOptions}
-          style={styles.segmentedButtons}
-        />
-       
-
-        <Text variant="labelMedium" style={styles.filterLabel}>
-          Estado:
-        </Text>
-        <SegmentedButtons
-          value={statusFilter}
-          onValueChange={(value) => setStatusFilter(value as StatusFilter)}
-          buttons={statusFilterOptions}
-          style={styles.segmentedButtons}
-        />
-      </View>
-
-      {isLoading ? (
-        <View style={styles.centerContent}>
-          <Text>Cargando transacciones...</Text>
-        </View>
-      ) : filteredTransactions.length === 0 ? (
-        <View style={styles.centerContent}>
-          <Text variant="bodyLarge" style={styles.emptyText}>
-            {searchQuery || statusFilter !== "all"
-              ? "No se encontraron transacciones con los filtros aplicados"
-              : "No tienes transacciones registradas"}
-          </Text>
-          {!searchQuery && statusFilter === "all" && (
-            <Button
-              mode="contained"
-              onPress={() => setShowForm(true)}
-              style={styles.createButton}
-            >
-              Crear primera transacción
-            </Button>
-          )}
-        </View>
-      ) : (
+      {/* Lista de transacciones */}
+      {filteredTransactions.length > 0 ? (
         <FlatList
           data={filteredTransactions}
-          renderItem={renderTransaction}
           keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.list}
+          renderItem={renderTransaction}
+          contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
         />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Text variant="bodyLarge" style={styles.emptyText}>
+            {searchQuery || filterType !== "all" || filterStatus !== "all"
+              ? "No se encontraron transacciones"
+              : "No tienes transacciones"}
+          </Text>
+          <Text
+            variant="bodyMedium"
+            style={[styles.emptySubtext, { opacity: 0.7 }]}
+          >
+            {searchQuery || filterType !== "all" || filterStatus !== "all"
+              ? "Intenta con otros filtros o términos de búsqueda"
+              : "Crea tu primera transacción usando el botón de abajo"}
+          </Text>
+        </View>
       )}
 
-      <FAB icon="plus" style={styles.fab} onPress={() => setShowForm(true)} />
-    </View>
+      {/* FAB para añadir transacción */}
+      <FAB
+        icon="plus"
+        style={styles.fab}
+        onPress={() => {
+          setTransactionToEdit(null);
+          setModalVisible(true);
+        }}
+        label="Añadir Transacción"
+      />
+
+      {/* Modal para el formulario */}
+      <Portal>
+        <Modal
+          visible={modalVisible}
+          onDismiss={() => {
+            setModalVisible(false);
+            setTransactionToEdit(null);
+          }}
+          contentContainerStyle={[
+            styles.modal,
+            { backgroundColor: theme.colors.surface },
+          ]}
+        >
+          <Text variant="headlineSmall" style={styles.modalTitle}>
+            {transactionToEdit ? "Editar Transacción" : "Nueva Transacción"}
+          </Text>
+          <TransactionForm
+            transaction={transactionToEdit}
+            onSuccess={handleTransactionAdded}
+            onCancel={() => {
+              setModalVisible(false);
+              setTransactionToEdit(null);
+            }}
+          />
+        </Modal>
+
+        {/* Modal para el formulario de edición */}
+        <Modal
+          visible={editModalVisible}
+          onDismiss={cancelEditTransaction}
+          contentContainerStyle={[
+            styles.modal,
+            { backgroundColor: theme.colors.surface },
+          ]}
+        >
+          <Text variant="headlineSmall" style={styles.modalTitle}>
+            Editar Transacción
+          </Text>
+          {transactionToEdit && (
+            <EditTransactionForm
+              transaction={transactionToEdit}
+              onSuccess={handleTransactionUpdated}
+              onCancel={cancelEditTransaction}
+            />
+          )}
+        </Modal>
+
+        {/* Diálogo de confirmación para eliminar */}
+        <Dialog
+          visible={deleteDialogVisible}
+          onDismiss={cancelDeleteTransaction}
+        >
+          <Dialog.Title>Eliminar Transacción</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">
+              ¿Estás seguro de que quieres eliminar esta transacción?
+            </Text>
+            {transactionToDelete && (
+              <Text
+                variant="bodyMedium"
+                style={{ marginTop: 8, fontWeight: "bold" }}
+              >
+                {categoryMap[transactionToDelete.category_id]?.name ||
+                  `Categoría ${transactionToDelete.category_id}`}{" "}
+                - $
+                {parseFloat(transactionToDelete.amount.toString()).toFixed(2)}
+              </Text>
+            )}
+            <Text variant="bodySmall" style={{ marginTop: 8, opacity: 0.7 }}>
+              Esta acción no se puede deshacer.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={cancelDeleteTransaction}>Cancelar</Button>
+            <Button
+              onPress={confirmDeleteTransaction}
+              loading={deleteTransactionMutation.isPending}
+              textColor={theme.colors.error}
+            >
+              Eliminar
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </Surface>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    padding: 16,
   },
-  searchbar: {
-    margin: 16,
-    marginBottom: 8,
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
   },
   filtersContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    marginBottom: 16,
   },
   filterLabel: {
     marginBottom: 8,
     marginTop: 8,
   },
-  segmentedButtons: {
+  filterButtons: {
     marginBottom: 8,
   },
-  list: {
-    padding: 16,
-    paddingBottom: 100,
+  searchbar: {
+    marginBottom: 16,
+  },
+  listContainer: {
+    paddingBottom: 100, // Espacio para el FAB
   },
   transactionCard: {
     marginBottom: 12,
-    elevation: 2,
   },
   transactionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    marginBottom: 12,
   },
   transactionInfo: {
     flex: 1,
-    marginRight: 12,
   },
-  transactionTitle: {
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  transactionDescription: {
-    marginBottom: 4,
-    opacity: 0.8,
-  },
-  transactionDate: {
-    opacity: 0.6,
-  },
-  transactionActions: {
-    alignItems: "flex-end",
-  },
-  transactionAmount: {
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  transactionFooter: {
-    marginTop: 12,
+  titleRow: {
     flexDirection: "row",
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  categoryName: {
+    flex: 1,
+    fontWeight: "bold",
+  },
+  menuButton: {
+    margin: 0,
+  },
+  description: {
+    opacity: 0.7,
+    fontStyle: "italic",
+    marginTop: 4,
+  },
+  transactionDetails: {
+    gap: 12,
+  },
+  amountSection: {
+    alignItems: "center",
+  },
+  amount: {
+    fontWeight: "bold",
+    fontSize: 24,
+  },
+  metaInfo: {
+    gap: 8,
+  },
+  chipContainer: {
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+  },
+  typeChip: {
+    minWidth: 70,
   },
   statusChip: {
-    marginRight: 8,
+    minWidth: 80,
   },
-  centerContent: {
+  dateText: {
+    textAlign: "center",
+    opacity: 0.8,
+  },
+  emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 32,
+    paddingHorizontal: 32,
   },
   emptyText: {
     textAlign: "center",
-    marginBottom: 16,
-    opacity: 0.7,
+    marginBottom: 8,
   },
-  createButton: {
-    marginTop: 16,
+  emptySubtext: {
+    textAlign: "center",
   },
   fab: {
     position: "absolute",
@@ -405,11 +604,26 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  modalContainer: {
-    backgroundColor: "white",
+  modal: {
+    marginHorizontal: 20,
     padding: 20,
-    margin: 20,
     borderRadius: 8,
     maxHeight: "90%",
+  },
+  modalTitle: {
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  // Agregar estos estilos:
+  actionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  editButton: {
+    margin: 0,
+  },
+  deleteButton: {
+    margin: 0,
   },
 });

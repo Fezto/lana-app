@@ -1,6 +1,5 @@
-// src/screens/Reports.tsx
 import React, { useState } from "react";
-import { StyleSheet, ScrollView, View, Dimensions } from "react-native";
+import { StyleSheet, ScrollView, View, Dimensions, Animated } from "react-native";
 import {
   Surface,
   Text,
@@ -83,6 +82,7 @@ export function Reports() {
     return nextDate.toLocaleDateString('es-ES', { month: 'short' });
   };
 
+  // CAMBIO 1: renderBudgetUsageChart modificado
   const renderBudgetUsageChart = () => {
     if (!categoryBalances.length) {
       return (
@@ -92,32 +92,21 @@ export function Reports() {
       );
     }
 
-    const colors = [
-      theme.colors.primary,
-      theme.colors.secondary,
-      theme.colors.tertiary,
-      theme.colors.error,
-      theme.colors.outline,
-      "#FF6384",
-      "#36A2EB",
-      "#FFCE56",
-      "#4BC0C0",
-      "#9966FF",
-    ];
-
     return (
       <View style={styles.chartContainer}>
         <Text variant="titleMedium" style={styles.chartTitle}>
           Uso de Presupuesto por Categoría
         </Text>
         
-        {/* Gráfica de barras horizontales */}
         <View style={styles.horizontalBarsContainer}>
-          {categoryBalances.slice(0, 8).map((balance, index) => {
-            const usagePercentage = Math.min(balance.usedPercentage, 100);
+          {categoryBalances.slice(0, 8).map((balance) => {
+            const usagePercentage = balance.budgetAmount > 0
+              ? Math.min((balance.transactionTotal + balance.recurringTotal) / balance.budgetAmount * 100, 100)
+              : 0;
+
             const color = balance.isOverBudget 
               ? theme.colors.error 
-              : balance.usedPercentage >= 80 
+              : usagePercentage >= 80 
               ? theme.colors.tertiary 
               : theme.colors.primary;
 
@@ -134,7 +123,7 @@ export function Reports() {
                 
                 <View style={styles.horizontalBarContainer}>
                   <View style={[styles.horizontalBarBackground]}>
-                    <View 
+                    <Animated.View 
                       style={[
                         styles.horizontalBarFill,
                         { 
@@ -172,6 +161,7 @@ export function Reports() {
     );
   };
 
+  // CAMBIO 2: renderCategoryBalanceChart modificado
   const renderCategoryBalanceChart = () => {
     if (!categoryBalances.length) {
       return (
@@ -188,7 +178,7 @@ export function Reports() {
         </Text>
         
         <View style={styles.simpleChart}>
-          {categoryBalances.slice(0, 6).map((balance, index) => {
+          {categoryBalances.slice(0, 6).map((balance) => {
             const maxBalance = Math.max(...categoryBalances.map(b => Math.abs(b.availableBalance)));
             const height = maxBalance > 0 ? (Math.abs(balance.availableBalance) / maxBalance) * 150 : 0;
             const isNegative = balance.availableBalance < 0;
@@ -200,7 +190,7 @@ export function Reports() {
                 </Text>
                 <View style={styles.barContainer}>
                   <View style={styles.barWrapper}>
-                    <View
+                    <Animated.View
                       style={[
                         styles.bar,
                         {
@@ -232,6 +222,8 @@ export function Reports() {
       </View>
     );
   };
+
+  // El resto del código original permanece igual, incluyendo renderBudgetTrendsChart y el return principal
 
   const renderBudgetTrendsChart = () => {
     if (!categoryBalances.length) {
@@ -269,7 +261,7 @@ export function Reports() {
                 <View style={styles.compareBarContainer}>
                   {/* Presupuestado */}
                   <View style={styles.compareBarWrapper}>
-                    <View
+                    <Animated.View
                       style={[
                         styles.compareBar,
                         {
@@ -285,7 +277,7 @@ export function Reports() {
                   
                   {/* Gastado */}
                   <View style={styles.compareBarWrapper}>
-                    <View
+                    <Animated.View
                       style={[
                         styles.compareBar,
                         {
@@ -301,7 +293,7 @@ export function Reports() {
 
                   {/* Disponible */}
                   <View style={styles.compareBarWrapper}>
-                    <View
+                    <Animated.View
                       style={[
                         styles.compareBar,
                         {
@@ -459,7 +451,7 @@ export function Reports() {
               </View>
               
               <View style={styles.statItem}>
-                <Text variant="bodySmall" style={styles.statLabel}>En Alerta (>80%)</Text>
+                <Text variant="bodySmall" style={styles.statLabel}>En Alerta ({'>'}80%)</Text>
                 <Text variant="titleMedium" style={[styles.statValue, { color: theme.colors.tertiary }]}>
                   {warningCategories.length}
                 </Text>
@@ -546,11 +538,12 @@ const styles = StyleSheet.create({
   },
   chartTitle: {
     marginBottom: 16,
-    textAlign: "center",
-    fontWeight: "bold",
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: 16, // Tamaño más pequeño para evitar desbordes
   },
   horizontalBarsContainer: {
-    width: '100%',
+    width: screenWidth - 32, // Ajustar al ancho de la pantalla con padding
     paddingHorizontal: 10,
   },
   horizontalBarRow: {
@@ -570,6 +563,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     minWidth: 50,
     textAlign: 'right',
+    fontSize: 12, // Tamaño más pequeño para evitar desbordes
   },
   horizontalBarContainer: {
     flexDirection: 'row',
@@ -587,12 +581,14 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 10,
     minWidth: 4,
+    justifyContent: 'center', // Centrar el contenido dentro de la barra
   },
   amountLabel: {
     minWidth: 90,
     textAlign: 'right',
-    fontSize: 11,
+    fontSize: 12, // Tamaño más pequeño
     fontWeight: '500',
+    color: 'rgba(0, 0, 0, 0.7)', // Color más claro para no competir con las barras
   },
   simpleChart: {
     flexDirection: "row",
@@ -610,6 +606,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     height: 32,
     fontWeight: '500',
+    color: 'rgba(0, 0, 0, 0.8)', // Color más claro
   },
   barContainer: {
     flexDirection: "row",
@@ -622,7 +619,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     height: 170,
-    width: 20,
+    width: 30, // Aumentar el ancho para evitar desbordes
   },
   bar: {
     width: 18,
@@ -634,6 +631,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
     fontWeight: '500',
+    color: 'rgba(0, 0, 0, 0.8)', // Color más claro para mejor contraste
+    width: '100%', // Asegura que el texto no se desborde
   },
   compareChart: {
     flexDirection: "row",
@@ -681,29 +680,30 @@ const styles = StyleSheet.create({
     height: 'auto',
   },
   legendContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 12,
     marginTop: 16,
     paddingHorizontal: 16,
   },
   legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
     marginBottom: 8,
-    maxWidth: 120,
+    maxWidth: 140, // Aumentar el ancho máximo para evitar desbordes
   },
   legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14, // Aumentar el tamaño para mejor visibilidad
+    height: 14,
+    borderRadius: 7,
   },
   noData: {
-    textAlign: "center",
+    textAlign: 'center',
     marginVertical: 40,
     opacity: 0.7,
+    fontSize: 14, // Tamaño más pequeño
   },
   statsGrid: {
     flexDirection: 'row',

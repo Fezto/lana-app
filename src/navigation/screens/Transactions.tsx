@@ -249,10 +249,9 @@ export function Transactions() {
     );
   };
 
-  const handleTransactionAdded = async() => {
+  const handleTransactionAdded = async () => {
     setModalVisible(false);
     setTransactionToEdit(null);
-    // Invalidar tanto transacciones como categorías para refrescar la data
     queryClient.invalidateQueries({ queryKey: ["/transactions/"] });
     queryClient.invalidateQueries({ queryKey: ["/categories/"] });
     await refetch();
@@ -272,7 +271,6 @@ export function Transactions() {
         transactionId: transactionToDelete.id,
       });
 
-      // Invalidar queries para refrescar la data
       queryClient.invalidateQueries({ queryKey: ["/transactions/"] });
 
       setDeleteDialogVisible(false);

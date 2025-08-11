@@ -22,19 +22,24 @@ interface CategoryBalanceCardProps {
 export function CategoryBalanceCard({ balance }: CategoryBalanceCardProps) {
   const theme = useTheme();
 
+  // Validar y calcular el porcentaje usado
+  const usedPercentage = balance.budgetAmount > 0
+    ? ((balance.transactionTotal + balance.recurringTotal) / balance.budgetAmount) * 100
+    : 0;
+
+  const progressValue = Math.min(usedPercentage / 100, 1);
+
   const getStatusColor = () => {
     if (balance.isOverBudget) return theme.colors.error;
-    if (balance.usedPercentage >= 80) return theme.colors.tertiary;
+    if (usedPercentage >= 80) return theme.colors.tertiary;
     return theme.colors.primary;
   };
 
   const getStatusText = () => {
     if (balance.isOverBudget) return 'Sobre presupuesto';
-    if (balance.usedPercentage >= 80) return 'Cerca del límite';
+    if (usedPercentage >= 80) return 'Cerca del límite';
     return 'En buen estado';
   };
-
-  const progressValue = Math.min(balance.usedPercentage / 100, 1);
 
   return (
     <Card style={styles.card}>
@@ -65,14 +70,14 @@ export function CategoryBalanceCard({ balance }: CategoryBalanceCardProps) {
           <Chip 
             mode="outlined"
             style={[
-            styles.statusChip, 
-            { 
+              styles.statusChip, 
+              { 
                 backgroundColor: balance.isOverBudget 
-                ? theme.colors.errorContainer 
-                : balance.usedPercentage >= 80 
-                ? theme.colors.tertiaryContainer
-                : theme.colors.primaryContainer
-            }
+                  ? theme.colors.errorContainer 
+                  : usedPercentage >= 80 
+                  ? theme.colors.tertiaryContainer
+                  : theme.colors.primaryContainer
+              }
             ]}
             textStyle={{ color: getStatusColor() }}
           >
@@ -124,7 +129,7 @@ export function CategoryBalanceCard({ balance }: CategoryBalanceCardProps) {
         {/* Progress Bar */}
         <View style={styles.progressContainer}>
           <Text variant="bodySmall" style={styles.progressLabel}>
-            Usado: {balance.usedPercentage.toFixed(1)}%
+            Usado: {usedPercentage.toFixed(1)}%
           </Text>
           <ProgressBar 
             progress={progressValue}

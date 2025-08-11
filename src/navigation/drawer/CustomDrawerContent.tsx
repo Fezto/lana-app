@@ -1,6 +1,6 @@
 // CustomDrawerContent.tsx
 import React from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
+import { View, Text, Image, StyleSheet, Alert } from "react-native";
 import {
   DrawerContentScrollView,
   DrawerItemList,
@@ -26,9 +26,22 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
   }
 
   const handleLogout = async () => {
-    await logout();
-    // Navegar a login o pantalla inicial si es necesario
-    // props.navigation.navigate('Login');
+    Alert.alert(
+      "Cerrar Sesión",
+      "¿Estás seguro de que deseas cerrar sesión?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Cerrar Sesión",
+          style: "destructive",
+          onPress: async () => {
+            await logout();
+            // Navegar a login o pantalla inicial si es necesario
+            props.navigation.navigate('Login');
+          },
+        },
+      ]
+    );
   };
 
   return (

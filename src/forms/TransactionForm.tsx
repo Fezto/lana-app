@@ -1,6 +1,6 @@
 // src/forms/TransactionForm.tsx
 import React, { useState } from "react";
-import { StyleSheet, View, ScrollView } from "react-native";
+import { StyleSheet, View, ScrollView, Alert } from "react-native";
 import {
   Text,
   TextInput,
@@ -13,7 +13,12 @@ import {
 } from "react-native-paper";
 import { useForm, Controller } from "react-hook-form";
 import { useCreateCategory, useListCategories } from "@api/categories";
-import { useCreateTransaction, useUpdateTransaction } from "@api/transactions";
+import {
+  useCreateTransaction,
+  useUpdateTransaction,
+  useListTransactions,
+} from "@api/transactions";
+import { useListBudgets } from "@api/budgets";
 import {
   CategoryType,
   type CategoryRead,
@@ -25,11 +30,9 @@ import {
 import { useAuth } from "@hooks/useAuth";
 
 interface TransactionFormData {
-  // Categoría
   categoryName: string;
   categoryType: CategoryType;
   selectedCategoryId: number | null;
-  // Transacción
   amount: string;
   description: string;
   date: string;
@@ -51,14 +54,12 @@ export function TransactionForm({
   const { user } = useAuth();
   const isEditing = !!transaction;
 
-  // Estados para UI
   const [createNewCategory, setCreateNewCategory] = useState(!isEditing);
   const [step, setStep] = useState<"category" | "transaction">(
     isEditing ? "transaction" : "category"
   );
   const [error, setError] = useState("");
 
-  // React Hook Form
   const {
     control,
     handleSubmit,
@@ -83,7 +84,6 @@ export function TransactionForm({
 
   const watchedValues = watch();
 
-  // Datos para validaciones
   const { data: existingCategories } = useListCategories({
     query: {
       enabled: !!user && (!createNewCategory || isEditing),
@@ -94,9 +94,23 @@ export function TransactionForm({
   const createTransactionMutation = useCreateTransaction();
   const updateTransactionMutation = useUpdateTransaction();
 
+  const { data: budgets } = useListBudgets(undefined, {
+    query: { enabled: !!user },
+  });
+
+  const { data: allTransactions } = useListTransactions(
+    {},
+    { query: { enabled: !!user } }
+  );
+
+  const monthKeyOf = (dateStr: string) => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+
   const handleCategoryStep = async () => {
     if (createNewCategory) {
-      // Solo validar el nombre de categoría, no crearla todavía
       const isValidName = await trigger("categoryName");
       if (!isValidName) return;
 
@@ -115,7 +129,6 @@ export function TransactionForm({
     try {
       let categoryId = data.selectedCategoryId;
 
-      // Si estamos creando una nueva categoría, crearla primero
       if (createNewCategory && !isEditing) {
         const newCategory = await createCategoryMutation.mutateAsync({
           data: {
@@ -131,8 +144,85 @@ export function TransactionForm({
         return;
       }
 
+      // Verificación de presupuesto con confirmación
+      let shouldProceed = true;
+
+      try {
+        let isExpense = false;
+        if (createNewCategory && !isEditing) {
+          isExpense = data.categoryType === "expense";
+        } else {
+          const cat = existingCategories?.find((c) => c.id === categoryId);
+          isExpense = (cat?.type || "expense") === "expense";
+        }
+
+        if (isExpense) {
+          const key = monthKeyOf(data.date);
+          const bs = budgets || [];
+
+          const budgetRow = bs.find((b: any) => {
+            const bKey =
+              (b.month as string) ||
+              (b.period as string) ||
+              (typeof b.date === "string" ? b.date.slice(0, 7) : "");
+            const monthMatches = bKey ? bKey === key : true;
+            return b.category_id === categoryId && monthMatches;
+          });
+
+          if (budgetRow && typeof budgetRow.amount !== "undefined") {
+            const txs = allTransactions || [];
+            const alreadySpent = txs
+              .filter(
+                (t: any) =>
+                  t.category_id === categoryId &&
+                  monthKeyOf(t.date) === key &&
+                  t.status !== "failed" &&
+                  (!isEditing || t.id !== transaction?.id)
+              )
+              .reduce(
+                (sum: number, t: any) => sum + Math.abs(Number(t.amount) || 0),
+                0
+              );
+
+            const remaining = Number(budgetRow.amount) - alreadySpent;
+            const willExceed = Number(data.amount) > remaining;
+
+            if (willExceed) {
+              const userConfirmed = await new Promise<boolean>((resolve) => {
+                Alert.alert(
+                  "Presupuesto excedido",
+                  `Esta transacción excede el presupuesto disponible para esta categoría.\n\n` +
+                  `Presupuesto restante: $${Math.max(0, remaining).toFixed(2)}\n` +
+                  `Monto de la transacción: $${Number(data.amount).toFixed(2)}\n\n` +
+                  `¿Deseas continuar con la transacción?`,
+                  [
+                    {
+                      text: "Cancelar",
+                      style: "cancel",
+                      onPress: () => resolve(false),
+                    },
+                    {
+                      text: "Continuar",
+                      onPress: () => resolve(true),
+                    },
+                  ],
+                  { cancelable: false }
+                );
+              });
+
+              shouldProceed = userConfirmed;
+            }
+          }
+        }
+      } catch {
+        // Silencioso: si falla el cálculo no bloqueamos la operación
+      }
+
+      if (!shouldProceed) {
+        return;
+      }
+
       if (isEditing && transaction) {
-        // Actualizar transacción existente
         const updateData: TransactionUpdate = {
           category_id: categoryId,
           amount: parseFloat(data.amount),
@@ -145,7 +235,6 @@ export function TransactionForm({
           data: updateData,
         });
       } else {
-        // Crear nueva transacción
         const createData: TransactionCreate = {
           category_id: categoryId,
           amount: parseFloat(data.amount),
@@ -159,7 +248,6 @@ export function TransactionForm({
         });
       }
 
-      // Reset form si no es edición
       if (!isEditing) {
         setValue("categoryName", "");
         setValue("categoryType", "expense");
@@ -225,7 +313,6 @@ export function TransactionForm({
     createTransactionMutation.isPending ||
     updateTransactionMutation.isPending;
 
-  // Si estamos editando, ir directo al paso de transacción
   if (isEditing || step === "transaction") {
     return (
       <ScrollView style={styles.container}>
@@ -235,13 +322,12 @@ export function TransactionForm({
             : "Paso 2: Detalles de la Transacción"}
         </Text>
 
-        {/* Mostrar categoría seleccionada si no es edición */}
         {!isEditing &&
           (createNewCategory
             ? watchedValues.categoryName
             : existingCategories?.find(
-                (c) => c.id === watchedValues.selectedCategoryId
-              )?.name) && (
+              (c) => c.id === watchedValues.selectedCategoryId
+            )?.name) && (
             <Card style={styles.selectedCategoryCard}>
               <Card.Content>
                 <Text variant="labelLarge">Categoría seleccionada:</Text>
@@ -249,14 +335,13 @@ export function TransactionForm({
                   {createNewCategory
                     ? watchedValues.categoryName
                     : existingCategories?.find(
-                        (c) => c.id === watchedValues.selectedCategoryId
-                      )?.name}
+                      (c) => c.id === watchedValues.selectedCategoryId
+                    )?.name}
                 </Text>
               </Card.Content>
             </Card>
           )}
 
-        {/* Si estamos editando, mostrar selector de categoría */}
         {isEditing && (
           <View style={styles.categorySection}>
             <Text variant="labelLarge" style={styles.label}>
@@ -278,7 +363,7 @@ export function TransactionForm({
                           style={[
                             styles.categoryCard,
                             value === category.id &&
-                              styles.selectedCategoryCard,
+                            styles.selectedCategoryCard,
                           ]}
                           onPress={() => onChange(category.id)}
                         >
@@ -460,14 +545,12 @@ export function TransactionForm({
     );
   }
 
-  // Paso 1: Selección de categoría (solo para nuevas transacciones)
   return (
     <ScrollView style={styles.container}>
       <Text variant="headlineSmall" style={styles.stepTitle}>
         Paso 1: Seleccionar Categoría
       </Text>
 
-      {/* Selector de modo de categoría */}
       <Text variant="labelLarge" style={styles.label}>
         Modo de categoría
       </Text>
@@ -666,16 +749,8 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
   },
-  cancelButton: {
-    // Estilos adicionales si es necesario
-  },
-  nextButton: {
-    // Estilos adicionales si es necesario
-  },
-  backButton: {
-    // Estilos adicionales si es necesario
-  },
-  submitButton: {
-    // Estilos adicionales si es necesario
-  },
+  cancelButton: {},
+  nextButton: {},
+  backButton: {},
+  submitButton: {},
 });

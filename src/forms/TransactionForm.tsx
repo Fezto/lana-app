@@ -148,15 +148,19 @@ export function TransactionForm({
       let shouldProceed = true;
 
       try {
-        let isExpense = false;
+        let categoryType: CategoryType = "expense";
         if (createNewCategory && !isEditing) {
-          isExpense = data.categoryType === "expense";
+          categoryType = data.categoryType;
         } else {
           const cat = existingCategories?.find((c) => c.id === categoryId);
-          isExpense = (cat?.type || "expense") === "expense";
+            categoryType = (cat?.type || "expense") as CategoryType;
         }
 
-        if (isExpense) {
+        const isExpense = categoryType === "expense";
+        const isIncome = categoryType === "income";
+
+        // Ahora aplica para ambos tipos
+        if (isExpense || isIncome) {
           const key = monthKeyOf(data.date);
           const bs = budgets || [];
 
@@ -169,9 +173,9 @@ export function TransactionForm({
             return b.category_id === categoryId && monthMatches;
           });
 
-          if (budgetRow && typeof budgetRow.amount !== "undefined") {
+            if (budgetRow && typeof budgetRow.amount !== "undefined") {
             const txs = allTransactions || [];
-            const alreadySpent = txs
+            const accumulated = txs
               .filter(
                 (t: any) =>
                   t.category_id === categoryId &&
@@ -184,17 +188,21 @@ export function TransactionForm({
                 0
               );
 
-            const remaining = Number(budgetRow.amount) - alreadySpent;
+            const remaining = Number(budgetRow.amount) - accumulated;
             const willExceed = Number(data.amount) > remaining;
 
             if (willExceed) {
+              const title = isExpense
+                ? "Presupuesto excedido"
+                : "Meta de ingresos excedida";
+              const descriptor = isExpense ? "presupuesto" : "meta";
               const userConfirmed = await new Promise<boolean>((resolve) => {
                 Alert.alert(
-                  "Presupuesto excedido",
-                  `Esta transacción excede el presupuesto disponible para esta categoría.\n\n` +
-                  `Presupuesto restante: $${Math.max(0, remaining).toFixed(2)}\n` +
-                  `Monto de la transacción: $${Number(data.amount).toFixed(2)}\n\n` +
-                  `¿Deseas continuar con la transacción?`,
+                  title,
+                  `Esta transacción excede el ${descriptor} disponible para esta categoría.\n\n` +
+                    `${isExpense ? "Presupuesto" : "Meta"} restante: $${Math.max(0, remaining).toFixed(2)}\n` +
+                    `Monto de la transacción: $${Number(data.amount).toFixed(2)}\n\n` +
+                    `¿Deseas continuar?`,
                   [
                     {
                       text: "Cancelar",
